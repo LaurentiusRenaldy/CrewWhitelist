@@ -24,10 +24,19 @@
     @Html.ValidationSummary(true)
     @Html.HiddenFor(model => model.Id)
 
-    <div class="form-group">
+    @*<div class="form-group">
         @Html.LabelFor(model => model.Barcode, new { @class = "col-xs-2 control-label" })
         <div class="col-xs-4">
             @Html.EditorFor(model => model.Barcode, new { htmlAttributes = new { @class = "form-control" } })
+            @Html.ValidationMessageFor(model => model.Barcode)
+        </div>
+    </div>*@
+
+    <div class="form-group">
+        @Html.LabelFor(model => model.Barcode, new { @class = "col-xs-2 control-label" })
+        <div class="col-xs-4">
+            @Html.DropDownListFor(model => model.Barcode, new SelectList (ViewBag.Crew, "Text", "Value"), "Pilih Crew",
+         new { @class = "form-control"})
             @Html.ValidationMessageFor(model => model.Barcode)
         </div>
     </div>
@@ -35,14 +44,14 @@
     <div class="form-group">
         @Html.LabelFor(model => model.TanggalAwal, new { @class = "col-xs-2 control-label" })
         <div class="col-xs-4">
-            @Html.EditorFor(model => model.TanggalAwal, new { htmlAttributes = new { @class = "form-control-datepicker" } })
+            @Html.EditorFor(model => model.TanggalAwal, new { htmlAttributes = new { @class = "form-control" } })
             @Html.ValidationMessageFor(model => model.TanggalAwal)
         </div>
     </div>
     <div class="form-group">
         @Html.LabelFor(model => model.TanggalAkhir, new { @class = "col-xs-2 control-label" })
         <div class="col-xs-4">
-            @Html.EditorFor(model => model.TanggalAkhir, new { htmlAttributes = new { @class = "form-control-datepicker" } })
+            @Html.EditorFor(model => model.TanggalAkhir, new { htmlAttributes = new { @class = "form-control" } })
             @Html.ValidationMessageFor(model => model.TanggalAkhir)
         </div>
     </div>
@@ -58,7 +67,16 @@
 @section scripts
     {
     <script type="text/javascript">
-		// scripts here
+        // scripts here
+        $(document).ready(function () {
+            $("#TanggalAwal").kendoDatePicker({ dateFormat: 'dd/mm/yy' });
+            $("#TanggalAkhir").kendoDatePicker({ dateFormat: 'dd/mm/yy' });
+
+            if ('@currentAction' == "Create") {
+                $("#TanggalAwal").kendoDatePicker({ value : new Date() });
+                $("#TanggalAkhir").kendoDatePicker({ value: new Date() });
+            }
+        })
     </script>
 }
 

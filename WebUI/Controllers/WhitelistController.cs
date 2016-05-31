@@ -18,20 +18,22 @@ using WebUI.Models.CrewWhitelist;
 
 namespace WebUI.Controllers
 {
-    [Authorize(Roles="adminwhitelist")]
+    [Authorize(Roles = "adminwhitelist")]
     public class WhitelistController : MyController
     {
-		private IWhitelistRepository RepoWhitelist;
-		private ILogRepository RepoLog;
+        private IWhitelistRepository RepoWhitelist;
+        private ICrewRepository RepoCrew;
+        private ILogRepository RepoLog;
 
-        public WhitelistController(IWhitelistRepository repoWhitelist, ILogRepository repoLog)
-			: base(repoLog)
+        public WhitelistController(IWhitelistRepository repoWhitelist, ILogRepository repoLog, ICrewRepository repoCrew)
+            : base(repoLog)
         {
             RepoWhitelist = repoWhitelist;
+            RepoCrew = repoCrew;
         }
 
-		[MvcSiteMapNode(Title = "Whitelist", ParentKey = "Dashboard",Key="IndexWhitelist")]
-		[SiteMapTitle("Breadcrumb")]
+        [MvcSiteMapNode(Title = "Whitelist", ParentKey = "Dashboard", Key = "IndexWhitelist")]
+        [SiteMapTitle("Breadcrumb")]
         public ActionResult Index()
         {
             return View();
@@ -65,28 +67,39 @@ namespace WebUI.Controllers
                 Logic = "and"
             };
 
-            List<Whitelist> items = RepoWhitelist.FindAll(null, null, null,filters);
+            List<Whitelist> items = RepoWhitelist.FindAll(null, null, null, filters);
             int total = items.Count();
 
             return new JavaScriptSerializer().Serialize(new { total = total, data = new WhitelistPresentationStub().MapList(items) });
         }
 
-		[MvcSiteMapNode(Title = "Create", ParentKey = "IndexWhitelist")]
-		[SiteMapTitle("Breadcrumb")]
+        [MvcSiteMapNode(Title = "Create", ParentKey = "IndexWhitelist")]
+        [SiteMapTitle("Breadcrumb")]
         public ActionResult Create()
         {
 
             WhitelistFormStub formStub = new WhitelistFormStub();
+            List<object> newList = new List<object>();
+            foreach (var crew in RepoCrew.FindAll())
+            {
+                newList.Add(
+                    new
+                    {
+                        Id = crew.barcode,
+                        Name = crew.barcode + " " + crew.name
+                    });
+            }
+            this.ViewBag.Crew = new SelectList(newList, "Name", "Id");
 
             return View("Form", formStub);
         }
 
         [HttpPost]
-		[SiteMapTitle("Breadcrumb")]
+        [SiteMapTitle("Breadcrumb")]
         public ActionResult Create(WhitelistFormStub model)
         {
             //bool isNameExist = RepoContractor.Find().Where(p => p.name == model.Name).Count() > 0;
-            
+
             if (ModelState.IsValid)
             {
                 Whitelist dbItem = new Whitelist();
@@ -94,36 +107,83 @@ namespace WebUI.Controllers
 
                 try
                 {
-                    RepoWhitelist.Save(dbItem);
+                    if (RepoWhitelist.FindAll().Where(x => x.barcode == dbItem.barcode) == null)
+                    {
+                        RepoWhitelist.Save(dbItem);
+                    }
+                    else
+                    {
+                        var items = RepoWhitelist.FindAll().Where(x => x.barcode == dbItem.barcode);
+                        var flag = true;
+                        foreach (var item in items)
+                        {
+                            if ((dbItem.tanggal_awal >= item.tanggal_awal && dbItem.tanggal_awal <= item.tanggal_akhir) ||
+                                (dbItem.tanggal_akhir >= item.tanggal_awal && dbItem.tanggal_akhir <= item.tanggal_akhir))
+                            {
+                                flag = false;
+                            }
+                        }
+                        if (flag == false)
+                        {
+                            ModelState.AddModelError("", "Jadwal Bentrok");
+                        }
+                        else if (flag == true)
+                        {
+                            RepoWhitelist.Save(dbItem);
+                            //message
+                            string template = HttpContext.GetGlobalResourceObject("MyGlobalMessage", "CreateSuccess").ToString();
+                            this.SetMessage(model.Barcode + "", template);
+
+                            return RedirectToAction("Index");
+                        }
+                    }
                 }
                 catch (Exception e)
                 {
                     return View("Form", model);
                 }
-
-                //message
-                string template = HttpContext.GetGlobalResourceObject("MyGlobalMessage", "CreateSuccess").ToString();
-                this.SetMessage(model.Barcode+"", template);
-
-                return RedirectToAction("Index");
             }
             else
             {
                 return View("Form", model);
             }
+            List<object> newList = new List<object>();
+            foreach (var crew in RepoCrew.FindAll())
+            {
+                newList.Add(
+                    new
+                    {
+                        Id = crew.barcode,
+                        Name = crew.barcode + " " + crew.name
+                    });
+            }
+            this.ViewBag.Crew = new SelectList(newList, "Name", "Id");
+            return View("Form", model);
         }
 
-		[MvcSiteMapNode(Title = "Edit", ParentKey = "IndexWhitelist", Key = "EditWhitelist", PreservedRouteParameters = "id")]
-		[SiteMapTitle("Breadcrumb")]
+        [MvcSiteMapNode(Title = "Edit", ParentKey = "IndexWhitelist", Key = "EditWhitelist", PreservedRouteParameters = "id")]
+        [SiteMapTitle("Breadcrumb")]
         public ActionResult Edit(int id)
         {
             Whitelist whitelist = RepoWhitelist.FindByPk(id);
+            List<object> newList = new List<object>();
+            foreach (var crew in RepoCrew.FindAll())
+            {
+                newList.Add(
+                    new
+                    {
+                        Id = crew.barcode,
+                        Name = crew.barcode + " " + crew.name
+                    });
+            }
+            this.ViewBag.Crew = new SelectList(newList, "Name", "Id");
+
             WhitelistFormStub formStub = new WhitelistFormStub(whitelist);
             return View("Form", formStub);
         }
 
         [HttpPost]
-		[SiteMapTitle("Breadcrumb")]
+        [SiteMapTitle("Breadcrumb")]
         public ActionResult Edit(WhitelistFormStub model)
         {
             //bool isNameExist = RepoKompetitor.Find().Where(p => p.name == model.Name && p.id != model.Id).Count() > 0;
@@ -135,36 +195,64 @@ namespace WebUI.Controllers
 
                 try
                 {
-                    RepoWhitelist.Save(dbItem);
+                    var items = RepoWhitelist.FindAll().Where(x => x.barcode == dbItem.barcode && x.id != dbItem.id);
+                    var flag = true;
+                    foreach (var item in items)
+                    {
+                        if ((dbItem.tanggal_awal >= item.tanggal_awal && dbItem.tanggal_awal <= item.tanggal_akhir) ||
+                            (dbItem.tanggal_akhir >= item.tanggal_awal && dbItem.tanggal_akhir <= item.tanggal_akhir))
+                        {
+                            flag = false;
+                        }
+                    }
+                    if (flag == false)
+                    {
+                        ModelState.AddModelError("", "Jadwal bentrok");
+                    }
+                    else if (flag == true)
+                    {
+                        RepoWhitelist.Save(dbItem);
+                        //message
+                        string template = HttpContext.GetGlobalResourceObject("MyGlobalMessage", "CreateSuccess").ToString();
+                        this.SetMessage(model.Barcode + "", template);
+
+                        return RedirectToAction("Index");
+                    }
                 }
                 catch (Exception e)
-                { 
+                {
                     return View("Form", model);
                 }
-
-                //message
-                string template = HttpContext.GetGlobalResourceObject("MyGlobalMessage", "CreateSuccess").ToString();
-                this.SetMessage(model.Barcode+"", template);
-
-                return RedirectToAction("Index");
             }
             else
             {
                 return View("Form", model);
             }
+            List<object> newList = new List<object>();
+            foreach (var crew in RepoCrew.FindAll())
+            {
+                newList.Add(
+                    new
+                    {
+                        Id = crew.barcode,
+                        Name = crew.barcode + " " + crew.name
+                    });
+            }
+            this.ViewBag.Crew = new SelectList(newList, "Name", "Id");
+            return View("Form", model);
         }
 
-		[HttpPost]
-		public JsonResult Delete(int id)
+        [HttpPost]
+        public JsonResult Delete(int id)
         {
-			string template = "";
-			ResponseModel response = new ResponseModel(true);
-			Whitelist dbItem = RepoWhitelist.FindByPk(id);
+            string template = "";
+            ResponseModel response = new ResponseModel(true);
+            Whitelist dbItem = RepoWhitelist.FindByPk(id);
 
             RepoWhitelist.Delete(dbItem);
 
             return Json(response);
         }
-	}
+    }
 }
 
